@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.INFO)
 
 url = 'http://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData?' \
       'symbol=%s&scale=%s&ma=qianfuquan&datalen=%s'
-# test
+
 
 def load_stocks_code(filename):
     """
