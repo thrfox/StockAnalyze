@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.INFO)
 
 url = 'http://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData?' \
       'symbol=%s&scale=%s&ma=qianfuquan&datalen=%s'
-
+# test
 
 def load_stocks_code(filename):
     """
@@ -74,7 +74,7 @@ def start_spider():
     datas = []
     for stock in stocks_codename:
         for s in scales:
-            data = p.apply_async(get_stocks_html2json, args=(stock, s, ))
+            data = p.apply_async(get_stocks_html2json, args=(stock, s,))
             # data.get()方法是阻塞的，如果放在循环里，会阻塞进程的运行
             datas.append(data)
 
@@ -87,6 +87,7 @@ def start_spider():
     p.close()
     p.join()
     print('爬取' + str(len(datas)) + '条')
-    print(datetime.now()-starttime)
+    print(datetime.now() - starttime)
+
 
 start_spider()
