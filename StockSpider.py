@@ -11,6 +11,7 @@ import logging
 from datetime import datetime
 
 import multiprocessing
+from urllib.error import URLError
 
 logging.basicConfig(level=logging.INFO)
 
@@ -37,12 +38,16 @@ def get_stocks_html2json(stocks_codename, scale, datalen='1023'):
     :param datalen: 长度
     :return: code股票代码，data数据，s当前分时
     """
-    html = request.urlopen(url % (stocks_codename['code'], scale, datalen)).read().decode('gbk')
-    if html == 'null':
-        return stocks_codename, 'null', str(scale)
-    # 解析通过html获得股票数据，使之成为规范化json数据
-    data = html.replace('day', '\"day\"').replace('open', '\"open\"').replace('high', '\"high\"') \
-        .replace('low', '\"low\"').replace('close', '\"close\"').replace('volume', '\"volume\"')
+    htmlurl = url % (stocks_codename['code'], scale, datalen)
+    try:
+        html = request.urlopen(htmlurl).read().decode('gbk')
+        if html == 'null':
+            return stocks_codename, 'null', str(scale)
+        # 解析通过html获得股票数据，使之成为规范化json数据
+        data = html.replace('day', '\"day\"').replace('open', '\"open\"').replace('high', '\"high\"') \
+            .replace('low', '\"low\"').replace('close', '\"close\"').replace('volume', '\"volume\"')
+    except URLError:
+        print('连接失败:' + htmlurl)
     return stocks_codename, data, str(scale)
 
 
@@ -68,18 +73,20 @@ def savadata2json(stock, data, scale):
 
 def start_spider():
     stocks_codename = load_stocks_code('StocksCode.json')
-    scales = [5, 30, 60, 240, 1200]
+    scales = [240]
     p = Pool(multiprocessing.cpu_count())
     starttime = datetime.now()
     datas = []
     for stock in stocks_codename:
+        print('获取' + stock['code'])
         for s in scales:
             data = p.apply_async(get_stocks_html2json, args=(stock, s,))
             # data.get()方法是阻塞的，如果放在循环里，会阻塞进程的运行
             datas.append(data)
-
+    print('解析数据中...')
     for data in datas:
         if data.get()[1] != 'null':
+            print(data.get()[0])
             savadata2json(data.get()[0], data.get()[1], data.get()[2])
         else:
             print('无法获取代码' + data.get()[0] + ';分时' + data.get()[2])

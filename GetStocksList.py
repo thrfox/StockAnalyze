@@ -1,32 +1,35 @@
+import json
+import multiprocessing
 import re
+from multiprocessing.dummy import Pool
 from urllib import request
+
+import itertools
 
 all_stocks_symbol_url = 'http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/' \
                         'Market_Center.getHQNodeData?page=%s&num=100&sort=symbol&asc=1&node=hs_a&symbol=&_s_r_a=init'
 
 
-def get_stocks_symbol():
+def get_stocks_symbol(page):
     """
-    获取股票代码
-    :return List
+    获取单个股票代码
+    :return 股票dict
     """
-    print('***爬取所有股票代码中...***')
-    n = 1
-    while True:
-        html = request.urlopen(all_stocks_symbol_url % n).read().decode('gbk')
-        symbols = re.findall('symbol:\"(.*?)\"', html)
-        if html == 'null':
-            print('***爬取完毕，等待写入***')
-            break
-        print('***正在爬取第 %s 页***' % n)
-        n += 1
-        yield symbols
+    html = request.urlopen(all_stocks_symbol_url % page).read().decode('gbk')
+    symbols = re.findall('(?:symbol|name):\"(.*?)\"', html)
+    stocks = []
+    for code, name in zip(*[iter(symbols)]*2):
+        d = {'code': code, 'name': name}
+        stocks.append(d)
+    if not stocks:
+        raise IndexError
+    return stocks
 
 
 def combine_symbol():
     """
-    合并处理后的多个list为一个list
-    :return: List [sh600000,sh600001...]
+    合并处理后的多个dict
+    :return: dict [{'sh600000':'A'},{'sh600001','B'},...]
     """
     symbols_list = []
     g = get_stocks_symbol()
@@ -35,15 +38,28 @@ def combine_symbol():
     return symbols_list
 
 
-def symbols2txt():
+def savedata2json(data):
     """
     存储为txt，以,分割
     :return:
     """
-    symbols_list = combine_symbol()
-    with open('stocks_code.txt', 'w') as f:
-        f.write(','.join(map(str, symbols_list)))
-    print('***写入完毕***')
+    with open('stocksCode.json', 'w') as js:
+        json.dump(data, js)
+    print('***写入文件完毕***')
 
 
-symbols2txt()
+def start_spider():
+    p = Pool(multiprocessing.cpu_count())
+    print('***爬取所有股票代码中...***')
+    stocks = []
+    data = []
+    for page in range(1, 36):
+        l = p.apply_async(get_stocks_symbol, args=(page,))
+        stocks.append(l)
+    for stock in stocks:
+        data.extend(stock.get())
+    print('共获取到%d条记录' % len(data))
+    savedata2json(data)
+    print(data)
+
+start_spider()

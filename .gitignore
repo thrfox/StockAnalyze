@@ -1,3 +1,5 @@
 .idea/*
+stocks/*
 
+*.json
 *.txt
