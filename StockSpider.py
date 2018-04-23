@@ -46,9 +46,10 @@ def get_stocks_html2json(stocks_codename, scale, datalen='1023'):
         # 解析通过html获得股票数据，使之成为规范化json数据
         data = html.replace('day', '\"day\"').replace('open', '\"open\"').replace('high', '\"high\"') \
             .replace('low', '\"low\"').replace('close', '\"close\"').replace('volume', '\"volume\"')
-    except URLError:
-        print('连接失败:' + htmlurl)
-    return stocks_codename, data, str(scale)
+        return stocks_codename, data, str(scale)
+    except Exception as e:
+        print('连接失败:' + htmlurl, e)
+        return stocks_codename, 'null', str(scale)
 
 
 def createfolder(path):
@@ -87,14 +88,13 @@ def start_spider():
     for data in datas:
         if data.get()[1] != 'null':
             print(data.get()[0])
-            savadata2json(data.get()[0], data.get()[1], data.get()[2])
+            p.apply_async(savadata2json, args=(data.get()[0], data.get()[1], data.get()[2],))
         else:
-            print('无法获取代码' + data.get()[0] + ';分时' + data.get()[2])
+            print('该项不存在:代码%s;分时%s' % (data.get()[0], data.get()[2]))
 
     p.close()
     p.join()
     print('爬取' + str(len(datas)) + '条')
     print(datetime.now() - starttime)
-
 
 start_spider()
