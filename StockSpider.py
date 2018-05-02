@@ -11,7 +11,6 @@ import logging
 from datetime import datetime
 
 import multiprocessing
-from urllib.error import URLError
 
 logging.basicConfig(level=logging.INFO)
 
