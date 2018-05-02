@@ -66,15 +66,25 @@ def savadata2json(stock, data, scale):
     :return:
     """
     folderpath = 'stocks/' + scale
+    json_path = folderpath + '/' + stock['code'] + '.json'
     createfolder(folderpath)
+    # 如果已有该数据,插入
+    if os.path.exists(json_path):
+        with open(json_path, 'r') as old:
+            old_data = json.load(old)['data']
+            data = eval(data)
+            data.extend(old_data)
+            data = list(set(data))
+        pass
+
     result = {'code': stock['code'], 'name': stock['name'], 'data': data}
-    with open(folderpath + '/' + stock['code'] + '.json', 'w') as js:
+    with open(json_path, 'w') as js:
         json.dump(result, js)
 
 
 def start_spider():
     stocks_codename = load_stocks_code('StocksCode.json')
-    scales = [240]
+    scales = [30]
     p = Pool(multiprocessing.cpu_count())
     starttime = datetime.now()
     datas = []

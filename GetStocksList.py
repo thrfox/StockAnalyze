@@ -1,10 +1,13 @@
 import json
 import multiprocessing
 import re
+from datetime import datetime
 from multiprocessing.dummy import Pool
 from urllib import request
 
 import itertools
+
+import redis
 
 all_stocks_symbol_url = 'http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/' \
                         'Market_Center.getHQNodeData?page=%s&num=100&sort=symbol&asc=1&node=hs_a&symbol=&_s_r_a=init'
@@ -19,47 +22,34 @@ def get_stocks_symbol(page):
     symbols = re.findall('(?:symbol|name):\"(.*?)\"', html)
     stocks = []
     for code, name in zip(*[iter(symbols)]*2):
-        d = {'code': code, 'name': name}
+        d = {code: name}
         stocks.append(d)
     if not stocks:
         raise IndexError
     return stocks
 
 
-def combine_symbol():
-    """
-    合并处理后的多个dict
-    :return: dict [{'sh600000':'A'},{'sh600001','B'},...]
-    """
-    symbols_list = []
-    g = get_stocks_symbol()
-    for n in g:
-        symbols_list += n
-    return symbols_list
-
-
-def savedata2json(data):
-    """
-    存储为txt，以,分割
-    :return:
-    """
-    with open('stocksCode.json', 'w') as js:
-        json.dump(data, js)
-    print('***写入文件完毕***')
-
-
 def start_spider():
     p = Pool(multiprocessing.cpu_count())
     print('***爬取所有股票代码中...***')
     stocks = []
-    data = []
+    pool = redis.ConnectionPool(host='127.0.0.1', port=6379, decode_responses=True)
+    r = redis.Redis(connection_pool=pool)
+    count = 0
     for page in range(1, 36):
+        print('正在爬取第', page, '页')
         l = p.apply_async(get_stocks_symbol, args=(page,))
         stocks.append(l)
+    print('***爬取结束,录入中...***')
+    start = datetime.now()
     for stock in stocks:
-        data.extend(stock.get())
-    print('共获取到%d条记录' % len(data))
-    savedata2json(data)
-    print(data)
+        for data in stock.get():
+            (code, name), = data.items()
+            r.hset('stocksCode', code, name)
+            count += 1
+    r.hset('stocksCode', 'lastUpdate', datetime.today())  # 加入当前获取的时间戳
+    end = datetime.now() - start
+    print(end)
+    print('本次获取到%d条记录,当前已有%s条记录' % (count, r.hlen('stocksCode')))
 
 start_spider()
