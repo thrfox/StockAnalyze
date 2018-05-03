@@ -1,16 +1,17 @@
-import json
 import multiprocessing
 import re
 from datetime import datetime
 from multiprocessing.dummy import Pool
 from urllib import request
 
-import itertools
-
 import redis
+
+import DataSource
 
 all_stocks_symbol_url = 'http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/' \
                         'Market_Center.getHQNodeData?page=%s&num=100&sort=symbol&asc=1&node=hs_a&symbol=&_s_r_a=init'
+
+STOCKSCODE_HASHNAME = 'teststocksCode'
 
 
 def get_stocks_symbol(page):
@@ -33,10 +34,9 @@ def start_spider():
     p = Pool(multiprocessing.cpu_count())
     print('***爬取所有股票代码中...***')
     stocks = []
-    pool = redis.ConnectionPool(host='127.0.0.1', port=6379, decode_responses=True)
-    r = redis.Redis(connection_pool=pool)
+    r = redis.Redis(connection_pool=DataSource.DATASOURCE_POOL)
     count = 0
-    for page in range(1, 36):
+    for page in range(1, 2):
         print('正在爬取第', page, '页')
         l = p.apply_async(get_stocks_symbol, args=(page,))
         stocks.append(l)
@@ -45,11 +45,10 @@ def start_spider():
     for stock in stocks:
         for data in stock.get():
             (code, name), = data.items()
-            r.hset('stocksCode', code, name)
+            r.hset(STOCKSCODE_HASHNAME, code, name)
             count += 1
-    r.hset('stocksCode', 'lastUpdate', datetime.today())  # 加入当前获取的时间戳
     end = datetime.now() - start
     print(end)
-    print('本次获取到%d条记录,当前已有%s条记录' % (count, r.hlen('stocksCode')))
+    print('本次获取到%d条记录,当前已有%s条记录' % (count, r.hlen(STOCKSCODE_HASHNAME)))
 
 start_spider()
