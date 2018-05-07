@@ -43,6 +43,13 @@ print(high)
 print(datetime.now() - start)
 """
 # print(r.hget('stocks', 'stocks:sh600557:30:2018-04-10 14:30:00'))
-for key in r.hscan_iter('stocks', 'stocks:sh600557:30:*'):
-    print(key)
+# for key in r.hscan_iter('stocks', 'stocks:sh600557:30:*'):
+#    print(key)
 print(r.keys())
+
+
+def clear_data():
+    r.delete('stocks')
+    r.delete('teststocksCode')
+    r.delete('stocksCode')
+    r.delete('lastUpdate')
