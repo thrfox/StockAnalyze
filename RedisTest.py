@@ -1,6 +1,3 @@
-import json
-from datetime import datetime
-
 import redis
 
 pool = redis.ConnectionPool(host='127.0.0.1', port=6379, decode_responses=True)
@@ -45,4 +42,7 @@ print(days)
 print(high)
 print(datetime.now() - start)
 """
-print(r.hget('stocks-5', 'stocks:sh600000:5'))
+# print(r.hget('stocks', 'stocks:sh600557:30:2018-04-10 14:30:00'))
+for key in r.hscan_iter('stocks', 'stocks:sh600557:30:*'):
+    print(key)
+print(r.keys())

@@ -4,12 +4,12 @@
 import json
 import logging
 import multiprocessing
-import os
 from datetime import datetime
 from multiprocessing.dummy import Pool
 from urllib import request
 
 import redis
+from dateutil import rrule, parser
 
 import DataSource
 
@@ -30,7 +30,24 @@ def load_stocks_code(hashname):
     return stocks_codes
 
 
-def get_stocks_html2json(code, scale, datalen='5'):
+def get_datalen_bylastupdate(code, scale):
+    """
+    根据股票最后爬取时间,动态确定需要爬取的datalen
+    :param code:
+    :param scale:
+    :return:
+    """
+    lastday = r.hget('lastUpdate', 'lastUpdate:%s' % code)  # 股票最后保存日期
+    if lastday is None:
+        return 1023
+    now = datetime.now()
+    offset = rrule.rrule(freq=rrule.DAILY, dtstart=parser.parse(lastday), until=now, byweekday=range(5)).count() - 1
+    offset = offset * 240 / scale
+    datalen = int(offset)
+    return datalen
+
+
+def get_stocks_html2json(code, scale):
     """
     获取股票代码的HTML页面
     :param code: 股票代码
@@ -38,6 +55,10 @@ def get_stocks_html2json(code, scale, datalen='5'):
     :param datalen: 长度
     :return: code股票代码，data数据，s当前分时
     """
+    datalen = get_datalen_bylastupdate(code, scale)
+    if datalen == 0:
+        return code, 'null', str(scale)
+
     htmlurl = url % (code, scale, datalen)
     try:
         html = request.urlopen(htmlurl).read().decode('gbk')
@@ -49,22 +70,6 @@ def get_stocks_html2json(code, scale, datalen='5'):
         return code, data, str(scale)
     except Exception as e:
         print('连接失败:' + htmlurl, e)
-        return code, 'null', str(scale)
-
-
-def combine_li_delete_duplicate(li1, li2):
-    """
-    去除[{a:b},{a:b},{a:c}]的重复dict元素
-    :param li1:
-    :return:
-    """
-    print(li1)
-    for i in li2:
-        print(type(i))
-    print(type(li1))
-    temp_list = list(set([str(i) for i in li1]))
-    li = [eval(i) for i in temp_list]
-    return li
 
 
 def savedata(code, data, scale):
@@ -74,13 +79,11 @@ def savedata(code, data, scale):
     :param scale: 分时 5/30/60/240/1200
     :return:
     """
-    if r.hexists('stocks-%s' % scale, 'stocks:%s:%s' % (code, scale)):
-        old_data = eval(json.loads(r.hget('stocks-%s' % scale, 'stocks:%s:%s' % (code, scale))))  # 如果存在原值,读取原值
-        new_data = eval(data)
-        print('test')
-        data = combine_li_delete_duplicate(old_data, new_data)
-    print('test')
-    r.hset('stocks-%s' % scale, 'stocks:%s:%s' % (code, scale), json.dumps(data))
+    datas = json.loads(data)  # list, list内存为每日数据
+    r.hsetnx('lastUpdate', 'lastUpdate:%s' % code, datetime.now().strftime('%Y-%m-%d'))  # 该股最后保存时间,精确到日
+    for i in datas:
+        day = i.get('day')
+        r.hset('stocks', 'stocks:%s:%s:%s' % (code, scale, day), json.dumps(i))  # stocks:sh600000:5:2018-05-04 10:10:00
 
 
 def start_spider():
@@ -99,8 +102,6 @@ def start_spider():
     for data in datas:
         if data.get()[1] != 'null':
             p.apply_async(savedata, args=(data.get()[0], data.get()[1], data.get()[2],))
-        else:
-            print('该项不存在:代码%s;分时%s' % (data.get()[0], data.get()[2]))
 
     p.close()
     p.join()
@@ -109,3 +110,10 @@ def start_spider():
 
 
 start_spider()
+
+
+def clear_data():
+    r.delete('stocks')
+    r.delete('teststocksCode')
+    r.delete('stocksCode')
+    r.delete('lastUpdate')

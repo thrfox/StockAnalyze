@@ -36,7 +36,7 @@ def start_spider():
     stocks = []
     r = redis.Redis(connection_pool=DataSource.DATASOURCE_POOL)
     count = 0
-    for page in range(1, 2):
+    for page in range(1, 6):
         print('正在爬取第', page, '页')
         l = p.apply_async(get_stocks_symbol, args=(page,))
         stocks.append(l)
@@ -45,7 +45,7 @@ def start_spider():
     for stock in stocks:
         for data in stock.get():
             (code, name), = data.items()
-            r.hset(STOCKSCODE_HASHNAME, code, name)
+            r.hset(STOCKSCODE_HASHNAME, code, name)  # {'sh600000': '浦发银行'}
             count += 1
     end = datetime.now() - start
     print(end)
